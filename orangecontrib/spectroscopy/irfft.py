@@ -277,3 +277,35 @@ class IRFFT():
             self.phase = np.arctan(ifg_sub_fft.imag/ifg_sub_fft.real)
         else:
             raise ValueError("Invalid PhaseCorrection: {}".format(self.phase_corr))
+    
+    def complex_fft(self, ifg, window=None, zpd=None, phase=None, info=None):
+
+        # Numeros de pontos do interferograma
+        number_of_points = int(info['Pixel Area (X, Y, Z)'][3])
+        # Distance do interferograma
+        scan_size = float(info['Interferometer Center/Distance'][2].replace(',', ''))
+        # Interferometro de Michelson
+        OPD = scan_size*2
+        # Auto explicativo
+        step_size = OPD/(number_of_points - 1)
+        # Acho que o objetivo aqui seja centralizar o espectro final
+        path_difference = (np.arange(-number_of_points/2, number_of_points/2)*step_size)
+
+        win_interferogram = ifg * window 
+
+        data_type = {'Win': win_interferogram, 'Raw': ifg}
+        choose_data = data_type['Win']
+        zf = 2**1
+
+        data_fft = np.fft.fft(choose_data)
+        magnitude = np.abs(data_fft)
+        angle = np.angle(data_fft)
+
+        Wmax = ((number_of_points-1)/(2*OPD))*10**4
+        wavenumber = np.linspace(0, Wmax, int(len(data_fft)/2))
+
+        self.spectrum = magnitude
+        self.phase = angle
+        self.wavenumbers = wavenumber
+
+        return self.spectrum, self.phase, self.wavenumbers

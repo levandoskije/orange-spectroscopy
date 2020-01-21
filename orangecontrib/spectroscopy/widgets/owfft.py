@@ -1,5 +1,7 @@
 import sys
 import numpy as np
+import scipy
+from scipy import signal
 
 from AnyQt.QtWidgets import QGridLayout, QApplication
 
@@ -347,67 +349,114 @@ class OWFFT(OWWidget):
             except ValueError:
                 stored_zpd_back = None
             stored_phase = stored_phase.x # lowercase x for RowInstance
+        if self.data.attributes is not None:
+            info = self.data.attributes
 
-        for row in self.data.X:
-            if self.sweeps in [2, 3]:
-                # split double-sweep for forward/backward
-                # forward: 2-2 = 0 , backward: 3-2 = 1
-                try:
-                    row = np.hsplit(row, 2)[self.sweeps - 2]
-                except ValueError as e:
-                    self.Error.ifg_split_error(e)
+            number_of_points = int(info['Pixel Area (X, Y, Z)'][3])
+
+            M = np.asarray(self.data)
+            # M = list(M)
+            # test = []
+            full_data = []
+            for i in range(int(len(M)/2)):
+                
+                ampli = M[2*i]
+                phase = np.exp(M[2*i + 1] * 1j)
+                full_data += [ampli*phase]
+                
+            full_data = np.asarray(full_data)
+
+            for row in full_data:
+                row -= np.mean(row)
+
+                row = np.array(row)
+                maximo = max(abs(row))
+                for i in range(len(row)):
+                    if maximo == abs(row[i]):
+                        indice = i
+                        break
+                delta_center = int((number_of_points / 2 - indice))
+
+                if delta_center < 0:
+                    temp = np.zeros((abs(delta_center)))
+                    row = np.delete(row,np.s_[:abs(delta_center)])
+                    row = np.concatenate((row, temp))
+                elif delta_center > 0:
+                    temp = np.zeros((abs(delta_center)))
+                    row = np.delete(row,np.s_[-abs(delta_center):])
+                    row = np.concatenate((temp, row))
+
+                '''boxcar, triang, blackman, hamming, hann, bartlett, flattop, parzen, bohman, blackmanharris, nuttall, barthann '''
+                choose_window = 'hann'
+                window = scipy.signal.get_window(choose_window, number_of_points, fftbins=True)
+
+                spectrum_out, phase_out, wavenumbers = fft_single.complex_fft(
+                            row, window=window, zpd=stored_zpd_fwd, phase=stored_phase, info=info)
+                
+
+                spectra.append(spectrum_out)
+                spectra.append(phase_out)  
+        else:
+            for row in self.data.X:
+                if self.sweeps in [2, 3]:
+                    # split double-sweep for forward/backward
+                    # forward: 2-2 = 0 , backward: 3-2 = 1
+                    try:
+                        row = np.hsplit(row, 2)[self.sweeps - 2]
+                    except ValueError as e:
+                        self.Error.ifg_split_error(e)
+                        return
+
+                if self.sweeps in [0, 2, 3]:
+                    try:
+                        spectrum_out, phase_out, wavenumbers = fft_single(
+                            row, zpd=stored_zpd_fwd, phase=stored_phase)
+                        zpd_fwd.append(fft_single.zpd)
+                    except ValueError as e:
+                        self.Error.fft_error(e)
+                        return
+                elif self.sweeps == 1:
+                    # Double sweep interferogram is split, solved independently and the
+                    # two results are averaged.
+                    try:
+                        data = np.hsplit(row, 2)
+                    except ValueError as e:
+                        self.Error.ifg_split_error(e)
+                        return
+
+                    fwd = data[0]
+                    # Reverse backward sweep to match fwd sweep
+                    back = data[1][::-1]
+
+                    # Calculate spectrum for both forward and backward sweeps
+                    try:
+                        spectrum_fwd, phase_fwd, wavenumbers = fft_single(
+                            fwd, zpd=stored_zpd_fwd, phase=stored_phase)
+                        zpd_fwd.append(fft_single.zpd)
+                        spectrum_back, phase_back, wavenumbers = fft_single(
+                            back, zpd=stored_zpd_back, phase=stored_phase)
+                        zpd_back.append(fft_single.zpd)
+                    except ValueError as e:
+                        self.Error.fft_error(e)
+                        return
+
+                    # Calculate the average of the forward and backward sweeps
+                    spectrum_out = np.mean(np.array([spectrum_fwd, spectrum_back]), axis=0)
+                    phase_out = np.mean(np.array([phase_fwd, phase_back]), axis=0)
+                else:
                     return
 
-            if self.sweeps in [0, 2, 3]:
-                try:
-                    spectrum_out, phase_out, wavenumbers = fft_single(
-                        row, zpd=stored_zpd_fwd, phase=stored_phase)
-                    zpd_fwd.append(fft_single.zpd)
-                except ValueError as e:
-                    self.Error.fft_error(e)
-                    return
-            elif self.sweeps == 1:
-                # Double sweep interferogram is split, solved independently and the
-                # two results are averaged.
-                try:
-                    data = np.hsplit(row, 2)
-                except ValueError as e:
-                    self.Error.ifg_split_error(e)
-                    return
-
-                fwd = data[0]
-                # Reverse backward sweep to match fwd sweep
-                back = data[1][::-1]
-
-                # Calculate spectrum for both forward and backward sweeps
-                try:
-                    spectrum_fwd, phase_fwd, wavenumbers = fft_single(
-                        fwd, zpd=stored_zpd_fwd, phase=stored_phase)
-                    zpd_fwd.append(fft_single.zpd)
-                    spectrum_back, phase_back, wavenumbers = fft_single(
-                        back, zpd=stored_zpd_back, phase=stored_phase)
-                    zpd_back.append(fft_single.zpd)
-                except ValueError as e:
-                    self.Error.fft_error(e)
-                    return
-
-                # Calculate the average of the forward and backward sweeps
-                spectrum_out = np.mean(np.array([spectrum_fwd, spectrum_back]), axis=0)
-                phase_out = np.mean(np.array([phase_fwd, phase_back]), axis=0)
-            else:
-                return
-
-            spectra.append(spectrum_out)
-            phases.append(phase_out)
+                spectra.append(spectrum_out)
+                phases.append(phase_out)
 
         spectra = np.vstack(spectra)
-        phases = np.vstack(phases)
+        # phases = np.vstack(phases)
 
-        self.phases_table = build_spec_table(wavenumbers, phases,
-                                             additional_table=self.data)
-        self.phases_table = add_meta_to_table(self.phases_table,
-                                              ContinuousVariable.make("zpd_fwd"),
-                                              zpd_fwd)
+        # self.phases_table = build_spec_table(wavenumbers, phases,
+        #                                      additional_table=self.data)
+        # self.phases_table = add_meta_to_table(self.phases_table,
+        #                                       ContinuousVariable.make("zpd_fwd"),
+        #                                       zpd_fwd)
         if zpd_back:
             self.phases_table = add_meta_to_table(self.phases_table,
                                                   ContinuousVariable.make("zpd_back"),
@@ -426,7 +475,7 @@ class OWFFT(OWWidget):
         self.spectra_table = build_spec_table(wavenumbers, spectra,
                                               additional_table=self.data)
         self.Outputs.spectra.send(self.spectra_table)
-        self.Outputs.phases.send(self.phases_table)
+        # self.Outputs.phases.send(self.phases_table)
 
     def determine_sweeps(self):
         """
