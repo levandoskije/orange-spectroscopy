@@ -386,12 +386,8 @@ class OWFFT(OWWidget):
                     row = np.delete(row,np.s_[-abs(delta_center):])
                     row = np.concatenate((temp, row))
 
-                '''boxcar, triang, blackman, hamming, hann, bartlett, flattop, parzen, bohman, blackmanharris, nuttall, barthann '''
-                choose_window = 'hann'
-                window = scipy.signal.get_window(choose_window, number_of_points, fftbins=True)
-
                 spectrum_out, phase_out, wavenumbers = fft_single.complex_fft(
-                            row, window=window, zpd=stored_zpd_fwd, phase=stored_phase, info=info)
+                            row, zpd=stored_zpd_fwd, phase=stored_phase, info=info)
                 
 
                 spectra.append(spectrum_out)
@@ -471,6 +467,8 @@ class OWFFT(OWWidget):
                 spectra = spectra[None, limits[0]:limits[1]]
             else:
                 spectra = spectra[:, limits[0]:limits[1]]
+
+        print('Wavenumber', len(wavenumbers), 'Spectra', len(spectra))
 
         self.spectra_table = build_spec_table(wavenumbers, spectra,
                                               additional_table=self.data)
