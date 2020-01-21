@@ -351,10 +351,10 @@ class IRFFT():
         angle = np.angle(ifg)
         
         Wmax = ((number_of_points-1)/(2*OPD))*10**4
-        wavenumber = np.linspace(0, Wmax, int(len(ifg)))
+        wavenumber = np.linspace(0, Wmax, int(len(ifg)/2))
 
-        self.spectrum = magnitude
-        self.phase = angle
+        self.spectrum = magnitude[:len(wavenumber)]
+        self.phase = angle[:len(wavenumber)]
         self.wavenumbers = wavenumber
 
         #####################################################################################################
