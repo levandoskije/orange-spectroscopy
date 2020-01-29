@@ -357,10 +357,10 @@ class OWFFT(OWWidget):
 
 
         if self.reader == 'NeaReaderGSF':
+            
+            self.Outputs.phases.send(None)
 
             info = self.data.attributes
-
-            number_of_points = int(info['Pixel Area (X, Y, Z)'][3])
 
             M = np.asarray(self.data)
             # M = list(M)
@@ -375,7 +375,6 @@ class OWFFT(OWWidget):
             full_data = np.asarray(full_data)
 
             for row in full_data:
-                row -= np.mean(row)
 
                 row = np.asarray(row)  
 
@@ -387,10 +386,20 @@ class OWFFT(OWWidget):
 
             spectra = np.vstack(spectra)
 
+            if self.limit_output is True:
+                limits = np.searchsorted(wavenumbers,
+                                        [self.out_limit1, self.out_limit2])
+                wavenumbers = wavenumbers[limits[0]:limits[1]]
+                # Handle 1D array if necessary
+                if spectra.ndim == 1:
+                    spectra = spectra[None, limits[0]:limits[1]]
+                else:
+                    spectra = spectra[:, limits[0]:limits[1]]
+
+
             self.spectra_table = build_spec_table(wavenumbers, spectra,
                                               additional_table=self.data)
             self.Outputs.spectra.send(self.spectra_table)
-            self.Outputs.phases.send(None)
 
         else:
 

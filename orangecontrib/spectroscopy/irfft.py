@@ -280,75 +280,33 @@ class IRFFT():
     
     def complex_fft(self, ifg, zpd=None, phase=None, info=None):
 
-        # Numeros de pontos do interferograma
         number_of_points = int(info['Pixel Area (X, Y, Z)'][3])
-        # Distance do interferograma
         scan_size = float(info['Interferometer Center/Distance'][2].replace(',', ''))
-        # Interferometro de Michelson
         OPD = scan_size*2
-        # Auto explicativo
         step_size = OPD/(number_of_points - 1)
         self.dx = step_size
 
-        # choose_data = ifg
-        # zf = 2**4
+        ifg -= np.mean(ifg)
 
-        # data_fft = np.fft.fft(choose_data, n=zf*number_of_points)
-        # magnitude = np.abs(data_fft)
-        # angle = np.angle(data_fft)
-
-        # Wmax = ((number_of_points-1)/(2*OPD))*10**4
-        # wavenumber = np.linspace(0, Wmax, int(len(data_fft)/2))
-
-        # self.spectrum = magnitude
-        # self.phase = angle
-        # self.wavenumbers = wavenumber
-        #####################################################################################################
-        # Stored phase
-        self.phase = phase
         # Stored ZPD
         if zpd is not None:
             self.zpd = zpd
         else:
             self.zpd = find_zpd(ifg, self.peak_search)
 
-        # Subtract DC value from interferogram
-        # ifg = ifg - ifg.mean()
+        ifg = apodize(ifg, self.zpd, self.apod_func)
+        ifg = zero_fill(ifg, self.zff)
+        # Rotate the Complete IFG so that the centerburst is at edges.
+        ifg = np.hstack((ifg[self.zpd:], ifg[0:self.zpd]))
 
-        # Calculate phase on interferogram of specified size 2*L
-        L = self.phase_ifg_size(ifg.shape[0])
-        if L == 0: # Use full ifg for phase
-            ifg = apodize(ifg, self.zpd, self.apod_func)
-            ifg = zero_fill(ifg, self.zff)
-            # Rotate the Complete IFG so that the centerburst is at edges.
-            ifg = np.hstack((ifg[self.zpd:], ifg[0:self.zpd]))
-            Nzff = ifg.shape[0]
-            # Take FFT of Rotated Complete Graph
-            ifg = np.fft.fft(ifg)
-            # self.compute_phase(ifg)
-        else:
-            # Select phase interferogram as copy
-            # Note that L is now the zpd index
-            Ixs = ifg[self.zpd - L : self.zpd + L].copy()
-            ifg = apodize(ifg, self.zpd, self.apod_func)
-            ifg = zero_fill(ifg, self.zff)
-            ifg = np.hstack((ifg[self.zpd:], ifg[0:self.zpd]))
-            Nzff = ifg.shape[0]
-
-            Ixs = apodize(Ixs, L, self.apod_func)
-            # Zero-fill Ixs to same size as ifg (instead of interpolating later)
-            Ixs = _zero_fill_pad(Ixs, Nzff - Ixs.shape[0])
-            Ixs = np.hstack((Ixs[L:], Ixs[0:L]))
-
-            ifg = np.fft.fft(ifg)
-            Ixs = np.fft.fft(Ixs)
-            # self.compute_phase(Ixs)
-
-        self.wavenumbers = np.fft.rfftfreq(Nzff, self.dx)
+        # Take FFT of Rotated Complete Graph
+        
+        ifg = np.fft.fft(ifg) # Complex fft
 
 
         magnitude = np.abs(ifg)
         angle = np.angle(ifg)
+        # angle = np.unwrap(np.angle(ifg)) # Unwrapping Phase
         
         Wmax = ((number_of_points-1)/(2*OPD))*10**4
         wavenumber = np.linspace(0, Wmax, int(len(ifg)/2))
@@ -356,6 +314,6 @@ class IRFFT():
         self.spectrum = magnitude[:len(wavenumber)]
         self.phase = angle[:len(wavenumber)]
         self.wavenumbers = wavenumber
+        
+        return self.spectrum, self.phase, self.wavenumbers
 
-        #####################################################################################################
-        return self.spectrum, self.phase, self.wavenumbers 
