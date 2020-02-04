@@ -103,6 +103,7 @@ class OWFFT(OWWidget):
         self.stored_phase = None
         self.spectra_table = None
         self.reader = None
+
         if self.dx_HeNe is True:
             self.dx = 1.0 / self.laser_wavenumber / 2.0
 
@@ -352,19 +353,17 @@ class OWFFT(OWWidget):
         if self.data.attributes is not None:
             try:
                 self.reader = self.data.attributes['Reader']
-            except:
+            except KeyError:
                 pass
 
 
         if self.reader == 'NeaReaderGSF':
-            
+
             self.Outputs.phases.send(None)
 
             info = self.data.attributes
 
             M = np.asarray(self.data)
-            # M = list(M)
-            # test = []
             full_data = []
             for i in range(int(len(M)/2)):
                 
@@ -375,11 +374,9 @@ class OWFFT(OWWidget):
             full_data = np.asarray(full_data)
 
             for row in full_data:
-
-                row = np.asarray(row)  
-
+                
                 spectrum_out, phase_out, wavenumbers = fft_single.complex_fft(
-                            row, zpd=stored_zpd_fwd, phase=stored_phase, info=info)
+                                                            row, zpd=stored_zpd_fwd, info=info)
 
                 spectra.append(spectrum_out)
                 spectra.append(phase_out)
@@ -387,14 +384,7 @@ class OWFFT(OWWidget):
             spectra = np.vstack(spectra)
 
             if self.limit_output is True:
-                limits = np.searchsorted(wavenumbers,
-                                        [self.out_limit1, self.out_limit2])
-                wavenumbers = wavenumbers[limits[0]:limits[1]]
-                # Handle 1D array if necessary
-                if spectra.ndim == 1:
-                    spectra = spectra[None, limits[0]:limits[1]]
-                else:
-                    spectra = spectra[:, limits[0]:limits[1]]
+                wavenumbers, spectra = self.limit_range(wavenumbers, spectra)
 
 
             self.spectra_table = build_spec_table(wavenumbers, spectra,
@@ -469,14 +459,7 @@ class OWFFT(OWWidget):
                                                     zpd_back)
 
             if self.limit_output is True:
-                limits = np.searchsorted(wavenumbers,
-                                        [self.out_limit1, self.out_limit2])
-                wavenumbers = wavenumbers[limits[0]:limits[1]]
-                # Handle 1D array if necessary
-                if spectra.ndim == 1:
-                    spectra = spectra[None, limits[0]:limits[1]]
-                else:
-                    spectra = spectra[:, limits[0]:limits[1]]
+                wavenumbers, spectra = self.limit_range(wavenumbers, spectra)
 
             self.spectra_table = build_spec_table(wavenumbers, spectra,
                                                 additional_table=self.data)
@@ -553,6 +536,19 @@ class OWFFT(OWWidget):
 
         self.dx = (1 / lwn / 2 ) * udr
         self.infoc.setText("{0} cm<sup>-1</sup> laser, {1} sampling interval".format(lwn, udr))
+
+    def limit_range(self, wavenumbers, spectra):
+
+        limits = np.searchsorted(wavenumbers,
+                                [self.out_limit1, self.out_limit2])
+        wavenumbers = wavenumbers[limits[0]:limits[1]]
+        # Handle 1D array if necessary
+        if spectra.ndim == 1:
+            spectra = spectra[None, limits[0]:limits[1]]
+        else:
+            spectra = spectra[:, limits[0]:limits[1]]
+
+        return wavenumbers, spectra
 
 
 # Simple main stub function in case being run outside Orange Canvas

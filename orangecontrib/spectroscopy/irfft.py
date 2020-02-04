@@ -278,7 +278,7 @@ class IRFFT():
         else:
             raise ValueError("Invalid PhaseCorrection: {}".format(self.phase_corr))
     
-    def complex_fft(self, ifg, zpd=None, phase=None, info=None):
+    def complex_fft(self, ifg, zpd=None, info=None):
 
         number_of_points = int(info['Pixel Area (X, Y, Z)'][3])
         scan_size = float(info['Interferometer Center/Distance'][2].replace(',', ''))
@@ -299,8 +299,6 @@ class IRFFT():
         # Rotate the Complete IFG so that the centerburst is at edges.
         ifg = np.hstack((ifg[self.zpd:], ifg[0:self.zpd]))
 
-        # Take FFT of Rotated Complete Graph
-        
         ifg = np.fft.fft(ifg) # Complex fft
 
 
@@ -308,7 +306,8 @@ class IRFFT():
         angle = np.angle(ifg)
         # angle = np.unwrap(np.angle(ifg)) # Unwrapping Phase
         
-        Wmax = ((number_of_points-1)/(2*OPD))*10**4
+        Wmax = ((number_of_points-1)/(2*OPD))*10**4 
+        #Florian Huth, 2015, PhD Thesis, "Nano-FTIR - Nanoscale Infrared Near-Field Spectroscopy"
         wavenumber = np.linspace(0, Wmax, int(len(ifg)/2))
 
         self.spectrum = magnitude[:len(wavenumber)]
