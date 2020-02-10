@@ -155,15 +155,15 @@ class OWFFT(OWWidget):
 
         self.dataBox.layout().addLayout(grid)
 
+        # FFT Options control area
+        self.optionsBox = gui.widgetBox(self.controlArea, "FFT Options")
+        
         box = gui.comboBox(
-            self.dataBox, self, "peak_search",
+            self.optionsBox, self, "peak_search",
             label="ZPD Peak Search:",
             items=[name.title() for name, _ in irfft.PeakSearch.__members__.items()],
             callback=self.setting_changed
             )
-
-        # FFT Options control area
-        self.optionsBox = gui.widgetBox(self.controlArea, "FFT Options")
 
         box = gui.comboBox(
             self.optionsBox, self, "apod_func",
@@ -179,8 +179,11 @@ class OWFFT(OWWidget):
             callback=self.setting_changed
             )
 
+        # Options Phase control area
+        self.phaseBox = gui.widgetBox(self.controlArea, "Phase Options")
+       
         box = gui.comboBox(
-            self.optionsBox, self, "phase_corr",
+            self.phaseBox, self, "phase_corr",
             label="Phase Correction:",
             items=self.phase_opts,
             callback=self.setting_changed
@@ -190,23 +193,23 @@ class OWFFT(OWWidget):
         grid.setContentsMargins(0, 0, 0, 0)
 
         le1 = gui.lineEdit(
-            self.optionsBox, self, "phase_resolution",
+            self.phaseBox, self, "phase_resolution",
             callback=self.setting_changed,
             valueType=int, controlWidth=30
             )
         cb1 = gui.checkBox(
-            self.optionsBox, self, "phase_res_limit",
+            self.phaseBox, self, "phase_res_limit",
             label="Limit phase resolution to ",
             callback=self.setting_changed,
             disables=le1
             )
-        lb1 = gui.widgetLabel(self.optionsBox, "cm<sup>-1<sup>")
+        lb1 = gui.widgetLabel(self.phaseBox, "cm<sup>-1<sup>")
 
         grid.addWidget(cb1, 0, 0)
         grid.addWidget(le1, 0, 1)
         grid.addWidget(lb1, 0, 2)
 
-        self.optionsBox.layout().addLayout(grid)
+        self.phaseBox.layout().addLayout(grid)
 
         # Output Data control area
         self.outputBox = gui.widgetBox(self.controlArea, "Output")
@@ -243,6 +246,7 @@ class OWFFT(OWWidget):
         # Disable the controls initially (no data)
         self.dataBox.setDisabled(True)
         self.optionsBox.setDisabled(True)
+        self.phaseBox.setDisabled(True)
 
     @Inputs.data
     def set_data(self, dataset):
@@ -259,6 +263,7 @@ class OWFFT(OWWidget):
             self.check_metadata()
             self.dataBox.setDisabled(False)
             self.optionsBox.setDisabled(False)
+            self.phaseBox.setDisabled(False)
             self.commit()
         else:
             self.data = None
@@ -359,17 +364,29 @@ class OWFFT(OWWidget):
 
         if self.reader == 'NeaReaderGSF':
 
+            # Disable area control not necessary for this type of data
             self.Outputs.phases.send(None)
+            self.dataBox.setDisabled(True)
+            self.phaseBox.setDisabled(True)
+
 
             info = self.data.attributes
+            number_of_points = int(info['Pixel Area (X, Y, Z)'][3])
+            scan_size = float(info['Interferometer Center/Distance'][2].replace(',', ''))
+            OPD = scan_size * 2
+            step_size = OPD / (number_of_points - 1)
+            
+            self.dx = float(str(step_size * 10 ** -4)[:13]) # Just showing the step to not worry the user
+            self.sweeps = 0
+            self.phase_resolution = 0
 
             M = np.asarray(self.data)
             full_data = []
-            for i in range(int(len(M)/2)):
+            for i in range(int(len(M) / 2)):
                 
-                ampli = M[2*i]
-                phase = np.exp(M[2*i + 1] * 1j)
-                full_data += [ampli*phase]
+                ampli = M[2 * i]
+                phase = np.exp(M[2 * i + 1] * 1j)
+                full_data += [ampli * phase]
                 
             full_data = np.asarray(full_data)
 

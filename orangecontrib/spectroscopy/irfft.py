@@ -281,9 +281,9 @@ class IRFFT():
     def complex_fft(self, ifg, zpd=None, info=None):
 
         number_of_points = int(info['Pixel Area (X, Y, Z)'][3])
-        scan_size = float(info['Interferometer Center/Distance'][2].replace(',', ''))
-        OPD = scan_size*2
-        step_size = OPD/(number_of_points - 1)
+        scan_size = float(info['Interferometer Center/Distance'][2].replace(',', '')) # Microns
+        OPD = scan_size * 2
+        step_size = OPD / (number_of_points - 1)
         self.dx = step_size
 
         ifg -= np.mean(ifg)
@@ -306,7 +306,7 @@ class IRFFT():
         angle = np.angle(ifg)
         # angle = np.unwrap(np.angle(ifg)) # Unwrapping Phase
         
-        Wmax = ((number_of_points-1)/(2*OPD))*10**4 
+        Wmax = ((number_of_points - 1) / (2 * (OPD * 10 ** -4))) # cm^-1
         #Florian Huth, 2015, PhD Thesis, "Nano-FTIR - Nanoscale Infrared Near-Field Spectroscopy"
         wavenumber = np.linspace(0, Wmax, int(len(ifg)/2))
 
