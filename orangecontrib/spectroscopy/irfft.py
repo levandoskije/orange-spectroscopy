@@ -1,6 +1,7 @@
 from enum import IntEnum
 
 import numpy as np
+import scipy.signal
 
 
 class ApodFunc(IntEnum):
@@ -171,6 +172,38 @@ def zero_fill(ifg, zff):
     # Pad array
     return _zero_fill_pad(ifg, zero_fill)
 
+def find_peak_zero_fill(ifg, type_peak, number_of_points):
+
+    if type_peak == 0: # MAXIMUM = 0
+        peak = max(ifg.real)            
+    elif type_peak == 1: # MINIMUM = 1
+        peak = min(ifg.real)
+    else: #ABSOLUTE = 2
+        peak = max(abs(ifg.real))
+
+    if type_peak == 2:
+        for i in range(len(ifg.real)):
+            if peak == abs(ifg.real[i]):
+                indice = i
+                break
+    else:
+        for i in range(len(ifg.real)):
+            if peak == ifg.real[i]:
+                indice = i
+                break
+
+    delta_center = int((number_of_points / 2 - indice))
+    if delta_center < 0:
+        zeros = np.zeros((abs(delta_center)))
+        ifg = np.delete(ifg, np.s_[:abs(delta_center)])
+        ifg = np.concatenate((ifg, zeros))
+    elif delta_center > 0:
+        zeros = np.zeros((abs(delta_center)))
+        ifg = np.delete(ifg, np.s_[-abs(delta_center):])
+        ifg = np.concatenate((zeros, ifg))
+
+    return ifg
+
 class IRFFT():
     """
     Calculate FFT of a single interferogram sweep.
@@ -287,24 +320,27 @@ class IRFFT():
         self.dx = step_size
 
         ifg -= np.mean(ifg)
+        ifg = find_peak_zero_fill(ifg, type_peak=self.peak_search,
+                                    number_of_points=number_of_points)
 
-        # Stored ZPD
-        if zpd is not None:
-            self.zpd = zpd
-        else:
-            self.zpd = find_zpd(ifg, self.peak_search)
-
-        ifg = apodize(ifg, self.zpd, self.apod_func)
-        ifg = zero_fill(ifg, self.zff)
-        # Rotate the Complete IFG so that the centerburst is at edges.
-        ifg = np.hstack((ifg[self.zpd:], ifg[0:self.zpd]))
-
-        ifg = np.fft.fft(ifg) # Complex fft
-
-
+        '''Options: boxcar, triang, blackman, hamming, hann, bartlett, 
+        flattop, parzen, bohman, blackmanharris, nuttall, barthann '''
+        
+        choosed_window = {
+            '0': 'boxcar', # Boxcar (None)
+            '1': 'blackman', # Blackman-Harris (3-term)
+            '2': 'blackmanharris', # Blackman-Harris (4-term)
+            '3': 'nuttall', # Blackman Nuttall (EP)
+        }
+        window = scipy.signal.get_window(choosed_window[str(self.apod_func)],
+                                            number_of_points, fftbins=True)
+        ifg = ifg * window
+        # print(self.zff, self.zff *number_of_points)
+        ifg = np.fft.fft(ifg, n=self.zff*number_of_points)
+        
         magnitude = np.abs(ifg)
         angle = np.angle(ifg)
-        # angle = np.unwrap(np.angle(ifg)) # Unwrapping Phase
+        # angle = np.unwrap(angle) # Unwrapping Phase
         
         Wmax = ((number_of_points - 1) / (2 * (OPD * 10 ** -4))) # cm^-1
         #Florian Huth, 2015, PhD Thesis, "Nano-FTIR - Nanoscale Infrared Near-Field Spectroscopy"
@@ -315,4 +351,3 @@ class IRFFT():
         self.wavenumbers = wavenumber
         
         return self.spectrum, self.phase, self.wavenumbers
-
