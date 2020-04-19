@@ -182,17 +182,11 @@ def find_peak_zero_fill(ifg, type_peak, number_of_points):
         peak = max(abs(ifg.real))
 
     if type_peak == 2:
-        for i in range(len(ifg.real)):
-            if peak == abs(ifg.real[i]):
-                indice = i
-                break
-    else:
-        for i in range(len(ifg.real)):
-            if peak == ifg.real[i]:
-                indice = i
-                break
+        index, = np.where(abs(ifg.real) == peak)
+    else:     
+        index, = np.where(ifg.real == peak)
 
-    delta_center = int((number_of_points / 2 - indice))
+    delta_center = int((number_of_points / 2 - index))
     if delta_center < 0:
         zeros = np.zeros((abs(delta_center)))
         ifg = np.delete(ifg, np.s_[:abs(delta_center)])
@@ -318,6 +312,7 @@ class IRFFT():
         OPD = scan_size * 2
         step_size = OPD / (number_of_points - 1)
         self.dx = step_size
+        self.zff = 2**2 # Default in complex FFT #ZFF = 4
 
         ifg -= np.mean(ifg)
         ifg = find_peak_zero_fill(ifg, type_peak=self.peak_search,
@@ -335,19 +330,17 @@ class IRFFT():
         window = scipy.signal.get_window(choosed_window[str(self.apod_func)],
                                             number_of_points, fftbins=True)
         ifg = ifg * window
-        # print(self.zff, self.zff *number_of_points)
         ifg = np.fft.fft(ifg, n=self.zff*number_of_points)
         
         magnitude = np.abs(ifg)
         angle = np.angle(ifg)
-        # angle = np.unwrap(angle) # Unwrapping Phase
         
-        Wmax = ((number_of_points - 1) / (2 * (OPD * 10 ** -4))) # cm^-1
+        Wmax = ((number_of_points - 1) / (OPD * 10 ** -4)) # cm^-1
         #Florian Huth, 2015, PhD Thesis, "Nano-FTIR - Nanoscale Infrared Near-Field Spectroscopy"
-        wavenumber = np.linspace(0, Wmax, int(len(ifg)/2))
+        wavenumber = np.linspace(0, Wmax, int(len(ifg)))
 
-        self.spectrum = magnitude[:len(wavenumber)]
-        self.phase = angle[:len(wavenumber)]
+        self.spectrum = magnitude
+        self.phase = angle
         self.wavenumbers = wavenumber
         
         return self.spectrum, self.phase, self.wavenumbers

@@ -155,35 +155,35 @@ class OWFFT(OWWidget):
 
         self.dataBox.layout().addLayout(grid)
 
-        # FFT Options control area
-        self.optionsBox = gui.widgetBox(self.controlArea, "FFT Options")
+        # Options 1
+        self.optionsBox1 = gui.widgetBox(self.controlArea, "Options 1")
         
         box = gui.comboBox(
-            self.optionsBox, self, "peak_search",
+            self.optionsBox1, self, "peak_search",
             label="ZPD Peak Search:",
             items=[name.title() for name, _ in irfft.PeakSearch.__members__.items()],
             callback=self.setting_changed
             )
 
         box = gui.comboBox(
-            self.optionsBox, self, "apod_func",
+            self.optionsBox1, self, "apod_func",
             label="Apodization function:",
             items=self.apod_opts,
             callback=self.setting_changed
             )
 
+        # Options 2
+        self.optionsBox2 = gui.widgetBox(self.controlArea, "Options 2")
+
         box = gui.comboBox(
-            self.optionsBox, self, "zff",
+            self.optionsBox2, self, "zff",
             label="Zero Filling Factor:",
             items=(2**n for n in range(10)),
             callback=self.setting_changed
             )
 
-        # Options Phase control area
-        self.phaseBox = gui.widgetBox(self.controlArea, "Phase Options")
-       
         box = gui.comboBox(
-            self.phaseBox, self, "phase_corr",
+            self.optionsBox2, self, "phase_corr",
             label="Phase Correction:",
             items=self.phase_opts,
             callback=self.setting_changed
@@ -193,23 +193,23 @@ class OWFFT(OWWidget):
         grid.setContentsMargins(0, 0, 0, 0)
 
         le1 = gui.lineEdit(
-            self.phaseBox, self, "phase_resolution",
+            self.optionsBox2, self, "phase_resolution",
             callback=self.setting_changed,
             valueType=int, controlWidth=30
             )
         cb1 = gui.checkBox(
-            self.phaseBox, self, "phase_res_limit",
+            self.optionsBox2, self, "phase_res_limit",
             label="Limit phase resolution to ",
             callback=self.setting_changed,
             disables=le1
             )
-        lb1 = gui.widgetLabel(self.phaseBox, "cm<sup>-1<sup>")
+        lb1 = gui.widgetLabel(self.optionsBox2, "cm<sup>-1<sup>")
 
         grid.addWidget(cb1, 0, 0)
         grid.addWidget(le1, 0, 1)
         grid.addWidget(lb1, 0, 2)
 
-        self.phaseBox.layout().addLayout(grid)
+        self.optionsBox2.layout().addLayout(grid)
 
         # Output Data control area
         self.outputBox = gui.widgetBox(self.controlArea, "Output")
@@ -245,8 +245,8 @@ class OWFFT(OWWidget):
 
         # Disable the controls initially (no data)
         self.dataBox.setDisabled(True)
-        self.optionsBox.setDisabled(True)
-        self.phaseBox.setDisabled(True)
+        self.optionsBox1.setDisabled(True)
+        self.optionsBox2.setDisabled(True)
 
     @Inputs.data
     def set_data(self, dataset):
@@ -262,14 +262,14 @@ class OWFFT(OWWidget):
             self.infob.setText('%d points each' % dataset.X.shape[1])
             self.check_metadata()
             self.dataBox.setDisabled(False)
-            self.optionsBox.setDisabled(False)
-            self.phaseBox.setDisabled(False)
+            self.optionsBox1.setDisabled(False)
+            self.optionsBox2.setDisabled(False)
             self.commit()
         else:
             self.data = None
             self.spectra_table = None
             self.dataBox.setDisabled(True)
-            self.optionsBox.setDisabled(True)
+            self.optionsBox1.setDisabled(True)
             self.infoa.setText("No data on input.")
             self.infob.setText("")
             self.Outputs.spectra.send(self.spectra_table)
@@ -367,7 +367,7 @@ class OWFFT(OWWidget):
             # Disable area control not necessary for this type of data
             self.Outputs.phases.send(None)
             self.dataBox.setDisabled(True)
-            self.phaseBox.setDisabled(True)
+            self.optionsBox2.setDisabled(True)
 
 
             info = self.data.attributes
@@ -379,6 +379,7 @@ class OWFFT(OWWidget):
             self.dx = float(str(step_size * 10 ** -4)[:13]) # Just showing the step to not worry the user
             self.sweeps = 0
             self.phase_resolution = 0
+            self.zff = 2 #Because is power to 2
 
             M = np.asarray(self.data)
             full_data = []
